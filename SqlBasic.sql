@@ -1,4 +1,4 @@
-/*[1일차 수업]
+/*/*[1일차 수업]
 1. 오라클 소프트웨어 다운로드
 
 1.11g Express Edition  버전
@@ -1843,4 +1843,745 @@ C U D >> 트랜잭션 동반 (commit,rollback)
 
 */
 
+--오라클 11g 가상컬럼(조합 컬럼)
+--컬럼: 국어, 영어, 수학... >> 합,평균
+--컬럼: 국어, 영어, 수학,합,평균 자동화
 
+create table vtable(
+  no1 number,
+  no2 number,
+  no3 number GENERATED ALWAYS as (no1 + no2) VIRTUAL
+);
+
+insert into vtable(no1,no2) values(100,200);
+
+insert into vtable(no1,no2) values(80,50);
+select * from vtable;
+commit;
+
+insert into vtable(no1,no2,no3) values(10,50,60);--(x)가상컬럼은 직접 데이터를 못넣음
+
+select column_name, data_type, data_default
+from user_tab_columns where table_name='VTABLE';
+
+--실무에 사용되는 형식의 코드
+--제품의 정보 (입고일) 기준으로 분기(1~4분기)
+--20190101, 20190520
+
+create table vtable2(
+  no number,--순번
+  p_code char(4),--제품코드(A001,B002)
+  p_date char(8),--입고일(20190909)
+  p_qty number,--수량 데이터
+  p_bungi number(1) GENERATED ALWAYS as (
+                  case when substr(p_date,5,2) in ('01','02','03') then 1
+                      when substr(p_date,5,2) in ('04','05','06') then 2
+                      when substr(p_date,5,2) in ('07','08','09') then 3
+                      else 4
+                  END
+                  ) VIRTUAL
+);
+
+select column_name, data_type, data_default
+from user_tab_columns where table_name='VTABLE2';
+
+insert into vtable2(p_date) values ('20190101');
+insert into vtable2(p_date) values ('20190102');
+insert into vtable2(p_date) values ('20190404');
+insert into vtable2(p_date) values ('20190704');
+insert into vtable2(p_date) values ('20191130');
+
+select * from vtable2;
+
+commit;
+--
+--DDL 테이블 다루기
+
+--1.테이블 생성하기
+create table temp6(
+  id number
+);
+
+-- 2. 테이블 생성했는데 컬럼... 추가하는 방법
+--기존 테이블에 컬럼 추가하기
+alter table temp6
+add ename varchar2(20);
+
+desc temp6;
+
+--3. 기존 테이블에 있는 컬럼의 이름 잘못표기(ename --> username)
+--기존 테이블에 있는 기존 컬럼의 이름 바꾸기(rename)
+alter table temp6
+rename column ename to username;
+
+desc temp6;
+
+--4. 기존 테이블에 있는 기존 컬럼의 TYPE 수정
+--(modify)
+alter table temp6
+modify (username varchar2(2000));
+
+desc temp6;
+
+--5.기존 테이블에 있는 기존 컬럼 삭제
+alter table temp6
+drop column username;
+
+desc temp6;
+
+--6. delete:테이블 데이터 삭제
+-- 테이블 처음 만들면 처음 크기 >> 데이터 넣으면 >> 데이터 크기
+--ex) 처음 1M >>10만건>>100M ---> 10만건 데이터 delete >> 현재 테이블 크기 100M
+--테이블데이터 삭제, [공간의 크기]처음 상태로
+--truncate(where 조건 (x))
+--ex) 처음 1M >>10만건>>100M ---> 10만건 데이터 truncate >> 현재 테이블 크기 1M
+
+--drop table temp6
+
+--
+--테이블 제약 설정하기
+--데이터 무결성 확보
+--제약(constraint) insert, update 주로...
+/*
+PRIMARY KEY(PK) 유일하게 테이블의 각행을 식별(NOT NULL 과 UNIQUE 조건을 만족) 
+--not null 하고 unique 한 제약
+--테이블 1개 (여러컬럼을 묶어서 하나로도 가능: 복합키)
+--주민번호, 게시판 글번호, 학번, 핸드폰 번호
+--index 자동생성
+--where boardid = 100;
+
+--진호: 만화방...50권...주고객...장사...고객 열혈강호 고객..
+--진호:1000권
+--진호: 방안...만화책 카테고리(무협(가나다),소년만화(가나다))
+--물리적인 91개)... ㄱㄴ ㄷ 다람쥐...
+
+--논리적인 것: 년도(2000) 가열 3행 (주소)
+
+--도서관: java: 위치(가열...)
+
+FOREIGN KEY(FK) 열과 참조된 열 사이의 외래키 관계를 적용하고 설정합니다. 
+(참조 제약) 테이블과 테이블 간의 제약
+:EMP, DEPT 참조제약 필요한데 지금은 (x), 있는것 처럼은 해놓음
+
+UNIQUE key(UK) 테이블의 모든 행을 유일하게 하는 값을 가진 열(NULL 을 허용)
+--unique 제약은 null 가질 수 있다 >> null 값을 가지지 못하게 할려면 (ename unique, not null)
+--컬럼의 개수 만큼
+a u not null
+b u not null
+
+NOT NULL(NN) 열은 NULL 값을 포함할 수 없습니다. 
+
+CHECK(CK) 참이어야 하는 조건을 지정함(대부분 업무 규칙을 설정)
+내가 원하는 값만 받겠다(gender 컬럼의 데이터 '남','여'만 받겠다)
+나느 항상 체크 데이터를
+ex) where gender in ('남','여')
+
+5가지 제약을 만드는 시점
+1.테이블을 생성할때 바로 생성(create table 구문안에서)
+2.테이블 생성이후(create table 생성...추후에 alter table add constraint..(자동화된 툴)
+*/
+select * from user_constraints where table_name='EMP';
+
+--간단 표기법(줄임) 권장(x)
+create table temp7(
+  --id number constraint pk_temp7_id primary key --pk_temp7_id 제약(관용)
+  id number primary key,
+  name varchar2(20) not null,
+  addr varchar2(50)
+);
+select * from user_constraints where table_name='TEMP7';
+
+insert into temp7(name,addr) values('홍길동','서울시 강남구');-- cannot insert NULL into ("BITUSER"."TEMP7"."ID")
+
+insert into temp7(id,name,addr) values(10,'홍길동','서울시 강남구');
+
+insert into temp7(id,name,addr) values(10,'김유신','서울시 강북구');--unique constraint (BITUSER.SYS_C007013) violated
+
+--pk 건다는 건( where id 자주 사용한다) -pk걸면 그 컬럼에 댛나 자동으로 index검색 속도 향상
+select * from temp7 where id =10;
+
+commit;
+
+--xpdlqmfdp ㅑㅜㅇㄷㅌ wjdqh ghkrdlsgkrl
+create table tmp8(
+  id number constraint pk_temp8_id primary key,
+  name varchar2(20) not null,
+  jumin char(6) constraint uk_temp8_jumin unique, --not null null 중복 가능
+  --jumin char(6) not null constraint uk_temp8_jumin unique,
+  addr varchar2(20)
+);
+
+select * from user_indexes where table_name='TEMP8';
+
+insert into tmp8(id,name,jumin,addr)
+values(10,'홍길동','123456','서울시');
+commit;
+
+insert into tmp8(id,name,jumin,addr)
+values(10,'A','456789','서울시');--unique constraint (%s.%s) violated"
+
+insert into tmp8(name,jumin,addr)
+values('A','456789','서울시');--cannot insert NULL into (%s)"
+
+insert into tmp8(id,name,jumin,addr)
+values(20,'아무개','123456','서울시');--unique constraint (%s.%s) violated
+
+insert into tmp8(id,name,addr)
+values(20,'아무개','서울시');
+
+insert into tmp8(id,name,addr)
+values(30,'야무지개','서울시');--unique (null에 대한 중복 체크 하지 않아요)
+
+select * from tmp8;
+commit;
+
+alter table tmp8
+rename tm8 to temp8;
+
+--테이블 생성 후에 제약 걸기
+create table temp9(id number);
+
+alter table temp9
+add constraint pk_temp9_id primary key(id);
+
+select * from user_indexes where table_name='TEMP9';
+select * from user_constraints where table_name='TEMP9';
+
+--ename 추가
+alter table temp9
+add ename varchar2(20);
+
+desc temp9;
+
+--not null 추가하기
+alter table temp9
+modify(ename not null);
+
+desc temp9;
+
+--check
+create table temp10(
+  id number constraint pk_temp10_id primary key,
+  name varchar2(20) not null,
+  jumin char(6) constraint uk_temp10_jumin unique,
+  
+  addr varchar2(20),
+  age number constraint ck_temp10_age check(age>=19)
+);
+
+select * from user_constraints where table_name='TEMP10';
+
+insert into temp10(id,name,jumin,addr,age)
+values (100,'홍길동','123456','서울시',20);
+
+select * from temp10;
+
+insert into temp10(id,name,jumin,addr,age)
+values(200,'김유신','789456','서울시',15);--"check constraint (%s.%s) violated"
+commit;
+
+-------------
+--참조제약 >> 테이블과 테이블간의 관계 >>RDB
+create table c_emp
+as 
+  select empno, ename,deptno from emp where 1=2;
+  
+create table c_dept
+as 
+  select detpno,dname from dept where 1=2;
+
+select * from user_constraints where table_name='C_EMP';
+select * from user_constraints where table_name='C_DEPT';
+
+--참조키 (c_emp(deptno) 컬럼은 c_dept(deptno) 컬럼은 참조 합니다
+--c_dept(deptno) 컬럼은 c_emp(deptno) 컬럼의 참조를 당합니다
+
+--2) 선핼 작업후 
+alter table c_emp
+add constraint fk_c_emp_deptno foreign key(deptno) references c_dept(deptno);
+
+--참조를 당하는 테이블있는 컬럼은 (신용을 보장)
+--PK . Unique 제약
+--1. PK 설정
+--2.FK 참조
+--1)선행
+alter table c_dept
+add constraint pk_c_dept_deptno primary key(deptno);
+
+select* from user_constraints where table_name='C_EMP';
+
+select* from user_constraints where table_name='C_DEPT';
+
+insert into c_dept(deptno, dname) values(100,'인사팀');
+insert into c_dept(deptno, dname) values(200,'관리팀');
+insert into c_dept(deptno, dname) values(300,'회계팀');
+commit;
+
+select * from c_dept;
+select * from c_emp; 
+
+--사원 입사 (참조 키)
+insert into c_emp(empno,ename,deptno)
+values(1,'신입이',500);  --integrity constraint (BITUSER.FK_C_EMP_DEPTNO) violated
+
+insert into c_emp(empno,ename)
+values(1,'신입이');
+
+select * from c_emp;  
+
+--우리 회사 신입사원은 무조건 부서를 가진다   (not null  fk)
+--우리 회사 신입사원은 부서를 가질수도 안가질수 있다 
+
+insert into c_emp(empno,ename,deptno)
+values(1,'아무게',100); 
+commit;
+
+--두개의 관계에서 주,종 관계를 파악하면...
+--fk_c_emp_deptno관계에서 부모:dept
+--master(dept) - child(emp)
+
+select * from c_emp;
+delete from c_dept where deptno=200; --삭제
+delete from
+
+/*
+column datatype [CONSTRAINT constraint_name]        
+REFERENCES table_ name (column1[,column2,..] [ON DELETE CASCADE]) 
+
+column datatype, . . . . . . . , [CONSTRAINT constraint_name] 
+FOREIGN KEY (column1[,column2,..])        
+REFERENCES table_name  (column1[,column2,..] [ON DELETE CASCADE]) 
+
+[ON DELETE CASCADE]: 부모 테이블과 생명을 같이 하겠다
+
+*/
+
+/*
+--학생 성적 테이블
+--학번의 데이터는 중복되거나 NULL 값을 허용하면 안된다
+--이름 NULL 값을 허용하지 않는다
+--국어
+--영어
+--수학 점수 컬럼은 숫자 타입이고 NULL 값을 허용
+--국어 , 영어 , 수학  값을 입력하지 않으면  default로 0값을 갖는다
+--총점 ,평균 컬럼은 가상컬럼으로(조합컬럼) 생성한다
+--학과코드는 학과 테이블에 학과코드를 참조한다
+--학번 , 이름 , 국어 , 영어 , 수학 , 총점 , 평균 , 학과코드
+
+--학과 테이블
+--학과코드 데이터는 중복되거나 NULL 값을 허용하면 안된다,
+--학과명 은 null값을 허락하지 않는다
+
+--학과코드 , 학과명
+
+--그리고 select 결과는
+--학번 , 이름  총점, 평균 , 학과코드 , 학과명 을 출력하세요
+
+
+*/
+
+
+
+create table school_dept(
+  deptno number constraint pk_school_dept_deptno primary key,
+  deptname varchar2(20) not null
+);
+
+create table studentscore(
+  student_id number ,
+  student_name varchar2(20) not null,
+  korean number(2) default 0,
+  english number(2) default 0,
+  math number(2) default 0,
+  score_sum number generated always as (korean+english+math) virtual,
+  score_avg number generated always as ((korean+english+math)/3) virtual,
+  school_deptno number 
+);
+
+alter table studentscore
+add constraint pk_studentscore_student_id primary key(student_id);
+
+alter table studentscore
+add constraint fk_studentscore_school_deptno foreign key(school_deptno) references school_dept(deptno);
+
+select * from school_dept;
+select * from studentscore;
+
+insert into studentscore (student_id,student_name) values(2009150030,'이욱재');
+insert into school_dept (deptno,deptname) values(10,'컴공');
+insert into studentscore 
+
+
+select * from studentscore;
+
+--
+--VIEW(가상테이블)
+--PDF p192
+--가상테이블 (물리적(x)... 잠시 메모리에...)
+--View 객체
+--create view 뷰이름 as [view가 보는 목록(select 구문)]
+--view는 테이블처럼 사용가능하다
+--view는 테이블처럼 사용가능(가상테이블) => 실제 emp,dept 같은 테이블과 사용법이 동일
+--view 는 메모리상에만 존재하는 가상테이블(subquery-> in line view->실제 테이블처리 고급)
+--view 는 sql문장덩어리
+
+--사용법
+--일반테이블과 동일 from 절 where 절
+--DML >> view 통해서 물리적인 테이블에 접근..insert, update, delete 가능....하지만 되도록 쓰지말것
+
+--view 장점
+--개발자의 편리성(join,subquery)
+--복잡한 쿼리 단순화
+--보안(권한별로 처리)
+
+create view v_001
+as 
+  select empno,ename from emp;
+  
+select * from v_001;--실제로 뷰 가지고 있는 sql문장이 실행
+--view 볼수 있는 데이터에 대해서 DML가능 조건절 가능
+
+create view v_002
+as 
+  select e.empno, e.ename,e.sal,e.deptno,d.dname
+  from emp e join dept d
+  on e.deptno = d.deptno;
+
+select * from v_002;
+
+
+create view v_003
+as 
+  select deptno, avg(sal) as avgsal
+  from emp
+  group by deptno;
+  
+select * from v_003;
+--in-line-view
+--자기 부서의 평균 월급보다 더 많은 월급을 받는 사원의 사번 이름 부서번호 부서별 평균 월급
+create view v_004
+as
+  select empno,ename,deptno
+  from emp
+  where sal >(select avg(sal) from emp group by deptno);
+  
+create view v_005
+as
+  select e.empno,e.ename,e.deptno,v.avgsal
+  from emp e join v_003 v on e.deptno=v.deptno
+  where e.sal>v.avgsal;
+
+--기존에 만든 view 수정
+--create or replace v_이름(overwrite)
+
+create or replace view v_006
+as
+  select empno, ename, sal from emp;
+
+drop view v_006;
+
+create or replace view v_emp
+as 
+  select empno,ename,deptno from emp where deptno=20;
+  
+--view 가상 테이블 DML
+--view 통해서 바라볼 수 있는 데이터에 대해서 가능
+--DML 작업 단일 테이블로 작업한 view
+
+select * from v_emp;
+
+delete  from v_emp;
+
+select * from emp where deptno=20;--실제로 데이터를 가지고있는 테이블 가서 삭제
+
+rollback;
+
+update v_emp
+set ename='AAA'
+where deptno=30;
+
+--1. 30번 부서 사원들의 직위, 이름, 월급을 담는 VIEW를 만들어라.
+create view v_30
+as 
+  select job, ename, sal
+  from emp
+  where deptno=30;
+select * from v_30;
+ 
+ 
+--2. 30번 부서 사원들의  직위, 이름, 월급을 담는 VIEW를 만드는데,
+-- 각각의 컬럼명을 직위, 사원이름, 월급으로 ALIAS를 주고 월급이
+-- 300보다 많은 사원들만 추출하도록 하라.
+-- create or replace view view001 (컬럼명, 컬럼명, .....)  
+create or replace view v_30
+as
+  select job as "직위", ename as "사원이름", sal as "월급"
+  from emp
+  where sal>300;
+select * from v_30;
+
+ 
+--3. 부서별 최대월급, 최소월급, 평균월급을 담는 VIEW를 만들어라.
+select * from emp;
+
+create or replace view v_sal
+as 
+  select deptno, max(sal) as "maxsal", min(sal) as "minsal", trunc(avg(sal)) as "avgsal"
+  from emp
+  group by deptno;
+  
+select * from v_sal;
+
+
+       
+--4. 부서별 평균월급을 담는 VIEW를 만들되, 평균월급이 2000 이상인
+-- 부서만 출력하도록 하라.
+create or replace view v_sal
+as 
+  select deptno, max(sal) as "maxsal", min(sal) as "minsal", trunc(avg(sal)) as "avgsal"
+  from emp
+  group by deptno
+  having avg(sal)>=2000;
+ 
+select * from v_sal;
+ 
+--5. 직위별 총월급을 담는 VIEW를 만들되, 직위가 MANAGER인
+create view v_005
+as
+  select job, sum(sal) as "총급여"
+  from emp
+  group by job
+  having job = 'MANAGER';
+select * from v_005;
+
+--제 11 장 SEQUENCE  pdf 185page
+--시퀀스 객체
+--순번 추출 ( 채번기)
+--자동으로 번호를 생성하는 전달 객체
+
+
+/*
+CREATE  SEQUENCE  sequence_name  
+[INCREMENT  BY  n] 
+[START  WITH  n]  
+[{MAXVALUE n | NOMAXVALUE}] 
+[{MINVALUE n | NOMINVALUE}] 
+[{CYCLE | NOCYCLE}] 
+[{CACHE | NOCACHE}]; 
+
+sequence_name  SEQUENCE 의 이름입니다. 
+INCREMENT  BY  n 정수 값인 n 으로 SEQUENCE 번호 사이의 간격을 지정. 
+    이 절이 생략되면 SEQUENCE 는 1 씩 증가. 
+
+START  WITH  n  생성하기 위해 첫번째 SEQUENCE 를 지정. 
+    이 절이 생략되면 SEQUENCE 는 1 로 시작. 
+
+MAXVALUE n  SEQUENCE 를 생성할 수 있는 최대 값을 지정. 
+
+NOMAXVALUE   오름차순용 10^27 최대값과 내림차순용-1 의 최소값을 지정. 
+
+MINVALUE n  최소 SEQUENCE 값을 지정. 
+
+NOMINVALUE  오름차순용 1 과 내림차순용-(10^26)의 최소값을 지정. 
+
+CYCLE | NOCYCLE  최대 또는 최소값에 도달한 후에 계속 값을 생성할 지의 여부를 
+    지정. NOCYCLE 이 디폴트. 
+
+CACHE | NOCACHE  얼마나 많은 값이 메모리에 오라클 서버가 미리 할당하고 유지 
+    하는가를 지정. 디폴트로 오라클 서버는 20 을 CACHE. 
+*/
+
+--게시판
+/*
+ create table board(
+   boardid number primary key,
+   title varchar2(50)
+)
+
+boardid  글번호는 >> 중복값 ,  null (x)
+내가 실수 없이 데이터를 넣을 수 있을 까
+
+where boardid = 10 ... 하나의 row return 하는 것을 저장
+
+질문)
+insert into board ....    boardid  1  ,
+insert into board ....    boardid  2  ,
+insert into board ....    boardid  3  ,
+*/
+
+create table kboard(
+  num number constraint pk_kboard_num primary key,
+  title varchar2(50)
+)
+
+--처음 글
+--num =1
+--다음 글
+--num =2
+
+
+--방법 -1  (0)
+insert into kboard(num , title)
+values((select nvl(max(num),0) + 1 from kboard),'처음');
+
+insert into kboard(num , title)
+values((select nvl(max(num),0) + 1 from kboard),'두번');
+
+insert into kboard(num , title)
+values((select nvl(max(num),0) + 1 from kboard),'세번');
+
+select * from kboard;
+
+delete from kboard where num=1;
+
+insert into kboard(num , title)
+values((select nvl(max(num),0) + 1 from kboard),'네번');
+
+select * from kboard;
+
+
+--방법 -2
+create table tboard(
+  num number constraint pk_tboard_num primary key,
+  title varchar2(50)
+)
+
+insert into tboard(num , title)
+values((select count(num) + 1 from tboard),'처음');
+
+insert into tboard(num , title)
+values((select count(num) + 1 from tboard),'두번');
+
+insert into tboard(num , title)
+values((select count(num) + 1 from tboard),'세번');
+commit;
+
+--문제점 
+--삭제 -> insert 기존 번호 충돌  > PK
+delete from tboard where num=1;
+select * from tboard;
+
+
+
+insert into tboard(num , title)
+values((select count(num) + 1 from tboard),'네번');
+
+
+select * from kboard;
+select * from tboard;
+
+---번호를 추출 중복값이 안나오게 순차적인 값 전달
+
+create sequence seq_num;
+
+--내가 가지는 계정이 객체 확인
+select * from user_sequences;
+
+
+/*
+NEXTVAL 과 CURRVAL 의사열 
+가) 특징
+1) NEXTVAL 는 다음 사용 가능한 SEQUENCE 값을 반환 한다. 
+2) SEQUENCE 가 참조될 때 마다, 다른 사용자에게 조차도 유일한 값을 반환한다.
+3) CURRVAL 은 현재 SEQUENCE 값을 얻는다. 
+4) CURRVAL 이 참조되기 전에 NEXTVAL 이 사용되어야 한다. 
+*/ 
+
+--번호 추출 하기
+select seq_num.nextval from dual;
+
+--정보 확인하기 현재값 (마지막 추출된 순번 확인)
+select seq_num.currval from dual;
+
+ create table sboard(
+  num number constraint pk_sboard_num primary key,
+  title varchar2(50)
+)
+
+insert into sboard(num, title)
+values(seq_num.nextval , '처음');
+
+insert into sboard(num, title)
+values(seq_num.nextval , '두번');
+
+insert into sboard(num, title)
+values(seq_num.nextval , '세번');
+
+select * from sboard;
+
+delete from sboard where num=8;
+
+insert into sboard(num, title)
+values(seq_num.nextval , '네번');
+
+rollback;
+
+commit;
+
+/*
+의사 컬럼(Pseudo-column)은 테이블의 컬럼처럼 동작하지만 
+실제로 테이블에 저장되지 않는 컬럼을 의미한다.
+SELECT 문에서는 의사컬럼을 사용할 수 있지만, DML 문장에서는 할 수 없다.
+시퀀스에서 사용하는 NEXTVAL이나 CURRVAL 도 의사 컬럼의 일종이며, 
+대표적인 예는 ROWNUM이다.
+*/
+
+--게시판 10개
+--질문 게시판,자유게시판, 공지사항
+--3개의 게시판 글번호를 따로 관리 하고 싶다
+--sequence 3개
+--1.q_num
+--2.f_num
+--3.k_num
+
+--게시판 10개
+--질문 게시판,자유게시판, 공지사항 하나의 글번호 통합
+--sequence 1개
+create sequence board_seq;
+
+insert into qboard() values(baord_seq.nextval...
+
+insert into fboard() values(baord_seq.nextval...
+
+insert into kboard() values(baord_seq.nextval...
+
+--1.sequence rollback 지원
+
+--TIP)
+--ms-sql
+--create table board (boardnum int identity(1,1), title varchar2(20))
+--insert into board(title) values ('MS');
+
+--버전 : 2012버전 : 오라클 처럼 sequence
+
+--my-sql
+--create table board(boardnum int auto_increment, tilte varcha(20))
+*/
+create sequence seq2_num
+start with 10
+increment by 2;
+
+select * from seq2_num;
+
+--
+--Top-n
+--ms-sql: select top 10, * from emp order by sal desc
+--oralcle :rownum(의사컬럼)
+
+--1. 정렬쿼리를 만든다
+--2. 쿼리에 순번(rownum) 부여하고 조건 (where rownum<=10)
+
+--1.기준(번호)
+select rownum as "num",e.*
+from(
+  select * 
+  from emp
+  order by sal desc) e;
+
+--2.조건 10명
+select rownum as "num",e.*
+from(
+  select * 
+  from emp
+  order by sal desc) e
+where rownum<=10;
