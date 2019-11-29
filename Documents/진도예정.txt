@@ -1,0 +1,23 @@
+9월 (~중간프로젝트/ 5~6주/ 9/23~ 11/11...2차 완료
+/늦어도 15일까지)
+오라클, Mysql(1주)
+JDBC (Java + Oracle):CRUD (1일)
+
+WEB 
+html5 + css3 
+(Bootstrap) 부가적으로 (html,css,javascript) framework(UI)
+
+Javascript (동적인 웹) 
+
+jquery, ajax
+
+(vue.js) 부가적으로 
+------------------front
+
+jsp (servlet) (java코드) + jdbc... servlet ..
+ 
+
+====
+부트스트랩(과제 위주) 
+vue.js(책으로 스터디)
+중간(UI) 프론트와 관련된 기술 위주(반응형 웹)
